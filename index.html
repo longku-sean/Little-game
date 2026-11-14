@@ -8,29 +8,28 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 *{box-sizing:border-box}
-body{margin:0;background:#101827;color:#fff;font-family:Arial,"Noto Sans TC",sans-serif;padding:16px}
-.container{max-width:900px;margin:auto}
+body{margin:0;padding:12px;background:#101827;color:#fff;font-family:Arial,"Noto Sans TC",sans-serif}
+.container{max-width:850px;margin:auto}
 h1{text-align:center;color:#f5c451}
-.panel{background:#1c293b;border:1px solid #34445d;border-radius:14px;padding:15px;margin:14px 0}
-input,button{font-size:15px;border-radius:9px;padding:11px;border:0}
+.panel{background:#1c293b;border:1px solid #34445d;border-radius:14px;padding:14px;margin:14px 0}
+input,button{font-size:15px;padding:11px;border:0;border-radius:9px}
 input{background:#edf2f7;color:#111;width:100%;margin:5px 0}
 button{background:#e9b949;color:#172033;font-weight:bold;margin:4px;cursor:pointer}
 button.secondary{background:#40536e;color:white}
 button.danger{background:#c74c4c;color:white}
-button:disabled{opacity:.45}
-.small{color:#aebbd0;font-size:13px}
-#board{display:grid;grid-template-columns:repeat(15,minmax(0,1fr));gap:2px;background:#b78a4b;padding:5px;border-radius:8px;max-width:650px;margin:12px auto}
-.cell{aspect-ratio:1;background:#e8c58c;border-radius:2px;display:flex;align-items:center;justify-content:center;padding:0;margin:0;min-width:0;position:relative}
-.cell.black:after,.cell.white:after{content:"";width:76%;height:76%;border-radius:50%;display:block}
+button:disabled{opacity:.4}
+.row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.row input{flex:1;min-width:100px}
+.small{font-size:13px;color:#b9c6d8}
+.hidden{display:none}
+#board{display:grid;grid-template-columns:repeat(15,minmax(0,1fr));gap:2px;background:#b78a4b;padding:5px;border-radius:8px;max-width:620px;margin:12px auto}
+.cell{aspect-ratio:1;background:#e8c58c;border-radius:2px;min-width:0;padding:0;margin:0;display:flex;align-items:center;justify-content:center}
+.cell.black:after,.cell.white:after{content:"";width:76%;height:76%;border-radius:50%}
 .cell.black:after{background:#151515;box-shadow:0 2px 4px #555}
 .cell.white:after{background:#fff;box-shadow:0 2px 4px #777}
 .cell.last{outline:2px solid #e33;outline-offset:-2px}
-.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-.row input{flex:1;min-width:120px}
 #chat{height:150px;overflow:auto;background:#101827;border-radius:8px;padding:10px;font-size:14px}
-.stat{display:inline-block;background:#101827;padding:10px 14px;border-radius:9px;margin:4px}
-.hidden{display:none}
-@media(max-width:480px){body{padding:8px}.panel{padding:10px}#board{gap:1px;padding:3px}.cell{border-radius:1px}}
+.stat{display:inline-block;background:#101827;padding:10px;border-radius:8px;margin:4px}
 </style>
 </head>
 <body>
@@ -39,23 +38,23 @@ button:disabled{opacity:.45}
 
 <section class="panel" id="authPanel">
 <h3>帳號登入</h3>
-<input id="email" type="email" placeholder="Email，例如 name@gmail.com" autocomplete="email">
-<input id="password" type="password" placeholder="密碼（至少 6 個字元）" autocomplete="current-password">
+<input id="email" type="email" placeholder="Email，例如 name@gmail.com">
+<input id="password" type="password" placeholder="密碼（至少 6 個字元）">
 <div class="row">
 <button onclick="guestLogin()">訪客登入</button>
 <button onclick="emailLogin()">Email 登入</button>
 <button onclick="emailRegister()">註冊帳號</button>
 </div>
 <div class="row">
-<button class="secondary" onclick="upgradeGuest()">將訪客升級成 Email 帳號</button>
+<button class="secondary" onclick="upgradeGuest()">訪客升級帳號</button>
 <button class="secondary" onclick="resetPassword()">忘記密碼</button>
 </div>
-<p id="authMsg" class="small">請登入或使用訪客模式。</p>
+<p id="authMsg" class="small">請登入。</p>
 </section>
 
 <section class="panel hidden" id="userPanel">
 <div class="row">
-<div id="userText">登入中</div>
+<span id="userText"></span>
 <button class="danger" onclick="logout()">登出</button>
 </div>
 </section>
@@ -69,20 +68,20 @@ button:disabled{opacity:.45}
 <h3>房間</h3>
 <div class="row">
 <button onclick="createRoom()">建立房間</button>
-<input id="roomCode" placeholder="輸入房間代碼">
+<input id="roomCode" placeholder="房間代碼">
 <button onclick="joinRoom()">加入房間</button>
 </div>
 <p id="roomInfo" class="small">尚未進入房間</p>
 <p id="role" class="small"></p>
 <hr>
 <div class="row">
-<div id="status">等待遊戲</div>
-<div id="timer" class="small">倒數：--</div>
+<strong id="status">等待遊戲</strong>
+<span id="timer" class="small">倒數：--</span>
 </div>
 <div id="board"></div>
 <div class="row">
-<button class="secondary" id="undoBtn" onclick="requestUndo()">申請悔棋</button>
-<button class="secondary" id="rematchBtn" onclick="rematch()">再戰投票</button>
+<button class="secondary" onclick="requestUndo()">申請悔棋</button>
+<button class="secondary" onclick="rematch()">再戰投票</button>
 </div>
 <p id="gameMsg" class="small"></p>
 </section>
@@ -98,320 +97,188 @@ button:disabled{opacity:.45}
 </div>
 
 <script>
-const SUPABASE_URL = "https://djtaiqsrziuflijzfxym.supabase.co";
-const SUPABASE_KEY = "sb_publishable_oRAUcMolkILOwCTbdW3rAQ_KY4wjMEb";
+const SUPABASE_URL="https://djtaiqsrziuflijzfxym.supabase.co";
+const SUPABASE_KEY="sb_publishable_oRAUcMolkILOwCTbdW3rAQ_KY4wjMEb";
+const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 
-const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+let me=null;
+let currentRoom=null;
+let myRole=null;
+let roomData=null;
+let roomChannel=null;
+let chatChannel=null;
+let timerInterval=null;
+let savingMove=false;
 
-let me = null;
-let currentRoom = null;
-let myRole = null;
-let roomChannel = null;
-let chatChannel = null;
-let roomData = null;
-let timerInterval = null;
-let lastMoveId = null;
+const $=id=>document.getElementById(id);
+const say=(id,text)=>$(id).textContent=text;
+const show=(id,value)=>$(id).classList.toggle("hidden",!value);
+const emailValue=()=>$("email").value.trim();
+const passwordValue=()=>$("password").value;
+const validEmail=e=>/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e);
+const emptyBoard=()=>Array(225).fill(0);
 
-const $ = id => document.getElementById(id);
-const say = (id, msg) => $(id).textContent = msg;
-
-function show(id, yes=true){
-  $(id).classList.toggle("hidden", !yes);
-}
-
-function getEmail(){
-  return $("email").value.trim();
-}
-
-function getPassword(){
-  return $("password").value;
-}
-
-function validEmail(email){
-  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email);
-}
-
-function setAuthMessage(msg){
-  say("authMsg", msg);
+function message(text){
+  say("gameMsg",text);
 }
 
 async function refreshAccount(){
-  const {data,error} = await db.auth.getUser();
-  if(error){
-    console.error(error);
-    return;
-  }
+  const {data,error}=await db.auth.getUser();
+  if(error){console.error(error);return;}
 
-  me = data.user || null;
+  me=data.user||null;
 
-  if(me){
-    show("authPanel",false);
-    show("userPanel",true);
-    show("gamePanel",true);
-    show("statsPanel",true);
-
-    const label = me.email ? me.email : "訪客帳號";
-    say("userText","目前登入："+label+"｜ID："+me.id);
-    await loadStats();
-  }else{
+  if(!me){
     show("authPanel",true);
     show("userPanel",false);
     show("gamePanel",false);
     show("statsPanel",false);
+    return;
   }
+
+  show("authPanel",false);
+  show("userPanel",true);
+  show("gamePanel",true);
+  show("statsPanel",true);
+
+  say("userText",(me.email||"訪客帳號")+"｜UID："+me.id);
+  await loadStats();
 }
 
 async function guestLogin(){
-  setAuthMessage("正在登入訪客帳號……");
-
-  const {data,error} = await db.auth.signInAnonymously();
-
-  if(error){
-    setAuthMessage("訪客登入失敗："+error.message);
-    return;
-  }
-
-  me = data.user;
+  say("authMsg","正在登入……");
+  const {data,error}=await db.auth.signInAnonymously();
+  if(error){say("authMsg","訪客登入失敗："+error.message);return;}
+  me=data.user;
   await refreshAccount();
-  setAuthMessage("訪客登入成功！");
+  say("authMsg","訪客登入成功！");
 }
 
 async function emailRegister(){
-  const email = getEmail();
-  const password = getPassword();
+  const email=emailValue(),password=passwordValue();
+  if(!validEmail(email)){say("authMsg","請輸入正確 Email。");return;}
+  if(password.length<6){say("authMsg","密碼至少 6 個字元。");return;}
 
-  if(!email || !validEmail(email)){
-    setAuthMessage("請輸入正確的 Email，例如 name@gmail.com");
-    return;
-  }
-
-  if(password.length < 6){
-    setAuthMessage("密碼至少需要 6 個字元。");
-    return;
-  }
-
-  setAuthMessage("正在註冊……");
-
-  const {data,error} = await db.auth.signUp({
-    email:email,
-    password:password
-  });
-
-  if(error){
-    setAuthMessage("註冊失敗："+error.message);
-    return;
-  }
+  const {data,error}=await db.auth.signUp({email,password});
+  if(error){say("authMsg","註冊失敗："+error.message);return;}
 
   if(data.session){
-    me = data.user;
+    me=data.user;
     await refreshAccount();
-    setAuthMessage("註冊成功！");
+    say("authMsg","註冊成功！");
   }else{
-    setAuthMessage("註冊資料已送出，請查看 Email 完成驗證。");
+    say("authMsg","註冊成功，請查看信箱完成驗證。");
   }
 }
 
 async function emailLogin(){
-  const email = getEmail();
-  const password = getPassword();
+  const email=emailValue(),password=passwordValue();
+  if(!validEmail(email)){say("authMsg","Email 格式錯誤。");return;}
+  if(!password){say("authMsg","請輸入密碼。");return;}
 
-  if(!email || !validEmail(email)){
-    setAuthMessage("請輸入正確的 Email。");
-    return;
-  }
+  const {data,error}=await db.auth.signInWithPassword({email,password});
+  if(error){say("authMsg","登入失敗："+error.message);return;}
 
-  if(!password){
-    setAuthMessage("請輸入密碼。");
-    return;
-  }
-
-  setAuthMessage("正在登入……");
-
-  const {data,error} = await db.auth.signInWithPassword({
-    email:email,
-    password:password
-  });
-
-  if(error){
-    setAuthMessage("登入失敗："+error.message);
-    return;
-  }
-
-  me = data.user;
+  me=data.user;
   await refreshAccount();
-  setAuthMessage("登入成功！");
+  say("authMsg","登入成功！");
 }
 
 async function upgradeGuest(){
-  if(!me){
-    setAuthMessage("請先登入訪客帳號。");
-    return;
-  }
+  if(!me){say("authMsg","請先登入訪客帳號。");return;}
+  if(me.email){say("authMsg","你已經有 Email 帳號。");return;}
 
-  if(me.email){
-    setAuthMessage("目前已經是 Email 帳號，不需要升級。");
-    return;
-  }
+  const email=emailValue(),password=passwordValue();
 
-  const email = getEmail();
-  const password = getPassword();
+  if(!email){say("authMsg","Email 欄位不能空白。");$("email").focus();return;}
+  if(!validEmail(email)){say("authMsg","Email 格式錯誤。");return;}
+  if(password.length<6){say("authMsg","密碼至少 6 個字元。");return;}
 
-  if(!email){
-    setAuthMessage("Email 欄位是空的，請先輸入 Email！");
-    $("email").focus();
-    return;
-  }
+  const oldId=me.id;
+  say("authMsg","正在升級帳號……");
 
-  if(!validEmail(email)){
-    setAuthMessage("Email 格式不正確，例如 name@gmail.com");
-    $("email").focus();
-    return;
-  }
+  const {data,error}=await db.auth.updateUser({email,password});
 
-  if(password.length < 6){
-    setAuthMessage("密碼至少需要 6 個字元。");
-    $("password").focus();
-    return;
-  }
+  if(error){say("authMsg","升級失敗："+error.message);return;}
 
-  const oldId = me.id;
-  setAuthMessage("正在升級帳號……");
-
-  const {data,error} = await db.auth.updateUser({
-    email:email,
-    password:password
-  });
-
-  if(error){
-    setAuthMessage("升級失敗："+error.message);
-    return;
-  }
-
-  me = data.user;
-
-  if(me.id !== oldId){
-    setAuthMessage("帳號 ID 發生變化，請聯絡管理員檢查。");
+  me=data.user;
+  if(me.id!==oldId){
+    say("authMsg","帳號 ID 不一致，請停止操作並檢查帳號。");
     return;
   }
 
   await refreshAccount();
-
-  if(!data.user.email_confirmed_at){
-    setAuthMessage("升級資料已送出！請到信箱點擊驗證連結。");
-  }else{
-    setAuthMessage("升級成功！原本的帳號 ID 和戰績都會保留。");
-  }
+  say("authMsg",data.user.email_confirmed_at?
+    "升級成功，原本 UID 已保留！":
+    "升級資料已送出，請到 Email 完成驗證。");
 }
 
 async function resetPassword(){
-  const email = getEmail();
+  const email=emailValue();
+  if(!validEmail(email)){say("authMsg","請先輸入正確 Email。");return;}
 
-  if(!email || !validEmail(email)){
-    setAuthMessage("請先輸入正確的 Email。");
-    return;
-  }
-
-  const {error} = await db.auth.resetPasswordForEmail(email,{
+  const {error}=await db.auth.resetPasswordForEmail(email,{
     redirectTo:location.origin
   });
 
-  if(error){
-    setAuthMessage("寄送失敗："+error.message);
-  }else{
-    setAuthMessage("已送出重設密碼信件，請查看信箱。");
-  }
+  say("authMsg",error?"寄送失敗："+error.message:"已寄出重設密碼信。");
 }
 
 async function logout(){
-  if(roomChannel) await db.removeChannel(roomChannel);
-  if(chatChannel) await db.removeChannel(chatChannel);
+  if(roomChannel)await db.removeChannel(roomChannel);
+  if(chatChannel)await db.removeChannel(chatChannel);
+  if(timerInterval)clearInterval(timerInterval);
 
-  roomChannel = null;
-  chatChannel = null;
-  currentRoom = null;
-  myRole = null;
-  roomData = null;
-
-  const {error} = await db.auth.signOut();
-
-  if(error){
-    alert("登出失敗："+error.message);
-    return;
-  }
-
+  const {error}=await db.auth.signOut();
+  if(error){alert(error.message);return;}
   location.reload();
 }
 
 async function loadStats(){
-  if(!me) return;
+  if(!me)return;
 
-  const {data,error} = await db
-    .from("gomoku_stats")
-    .select("*")
-    .eq("user_id",me.id)
-    .maybeSingle();
+  const {data,error}=await db.from("gomoku_stats")
+    .select("*").eq("user_id",me.id).maybeSingle();
 
   if(error){
-    say("stats","讀取戰績失敗："+error.message);
+    say("stats","讀取失敗："+error.message);
     return;
   }
 
-  const s = data || {wins:0,losses:0,draws:0};
-
-  $("stats").innerHTML = `
-    <span class="stat">勝場：${s.wins || 0}</span>
-    <span class="stat">敗場：${s.losses || 0}</span>
-    <span class="stat">平手：${s.draws || 0}</span>
-  `;
+  const s=data||{wins:0,losses:0,draws:0};
+  $("stats").innerHTML=`
+    <span class="stat">勝場：${s.wins||0}</span>
+    <span class="stat">敗場：${s.losses||0}</span>
+    <span class="stat">平手：${s.draws||0}</span>`;
 }
 
 async function updateStats(result){
-  if(!me || !currentRoom) return;
+  if(!me||!currentRoom)return;
 
-  const key = "gomoku_result_"+currentRoom;
-  if(localStorage.getItem(key)) return;
+  const key="gomoku_result_"+currentRoom;
+  if(localStorage.getItem(key))return;
 
-  const {data,error} = await db
-    .from("gomoku_stats")
-    .select("*")
-    .eq("user_id",me.id)
-    .maybeSingle();
+  const {data,error}=await db.from("gomoku_stats")
+    .select("*").eq("user_id",me.id).maybeSingle();
 
-  if(error){
-    console.error("讀取戰績失敗",error);
-    return;
-  }
+  if(error){message("讀取戰績失敗："+error.message);return;}
 
-  const old = data || {
+  const old=data||{wins:0,losses:0,draws:0};
+  const next={
     user_id:me.id,
-    wins:0,
-    losses:0,
-    draws:0
-  };
-
-  const next = {
-    user_id:me.id,
-    wins:(old.wins || 0) + (result==="win" ? 1 : 0),
-    losses:(old.losses || 0) + (result==="loss" ? 1 : 0),
-    draws:(old.draws || 0) + (result==="draw" ? 1 : 0),
+    wins:(old.wins||0)+(result==="win"?1:0),
+    losses:(old.losses||0)+(result==="loss"?1:0),
+    draws:(old.draws||0)+(result==="draw"?1:0),
     updated_at:new Date().toISOString()
   };
 
-  const saved = await db
-    .from("gomoku_stats")
+  const {error:saveError}=await db.from("gomoku_stats")
     .upsert(next,{onConflict:"user_id"});
 
-  if(saved.error){
-    console.error("儲存戰績失敗",saved.error);
-    return;
-  }
+  if(saveError){message("儲存戰績失敗："+saveError.message);return;}
 
   localStorage.setItem(key,"1");
   await loadStats();
-}
-
-function emptyBoard(){
-  return Array(225).fill(0);
 }
 
 function makeCode(){
@@ -419,12 +286,10 @@ function makeCode(){
 }
 
 async function createRoom(){
-  if(!me) return alert("請先登入。");
+  if(!me)return alert("請先登入。");
 
-  const code = makeCode();
-
-  const {data,error} = await db
-    .from("gomoku_rooms")
+  const code=makeCode();
+  const {data,error}=await db.from("gomoku_rooms")
     .insert({
       room_code:code,
       host_id:me.id,
@@ -436,9 +301,7 @@ async function createRoom(){
       undo_request:null,
       rematch_votes:[],
       history:[]
-    })
-    .select()
-    .single();
+    }).select("*").single();
 
   if(error){
     alert("建立房間失敗："+error.message);
@@ -449,34 +312,22 @@ async function createRoom(){
 }
 
 async function joinRoom(){
-  if(!me) return alert("請先登入。");
+  if(!me)return alert("請先登入。");
 
-  const code = $("roomCode").value.trim().toUpperCase();
+  const code=$("roomCode").value.trim().toUpperCase();
+  if(!code)return alert("請輸入房間代碼。");
 
-  if(!code) return alert("請輸入房間代碼。");
+  const {data,error}=await db.from("gomoku_rooms")
+    .select("*").eq("room_code",code).maybeSingle();
 
-  const {data,error} = await db
-    .from("gomoku_rooms")
-    .select("*")
-    .eq("room_code",code)
-    .maybeSingle();
+  if(error){alert("讀取房間失敗："+error.message);return;}
+  if(!data){alert("找不到房間。");return;}
 
-  if(error || !data){
-    alert("找不到房間，請確認代碼。");
-    return;
-  }
+  if(data.host_id===me.id)return enterRoom(data,"black");
+  if(data.guest_id===me.id)return enterRoom(data,"white");
 
-  if(data.host_id===me.id){
-    return enterRoom(data,"black");
-  }
-
-  if(data.guest_id===me.id){
-    return enterRoom(data,"white");
-  }
-
-  if(!data.guest_id && data.status==="waiting"){
-    const {data:updated,error:updateError} = await db
-      .from("gomoku_rooms")
+  if(!data.guest_id&&data.status==="waiting"){
+    const {data:updated,error:updateError}=await db.from("gomoku_rooms")
       .update({
         guest_id:me.id,
         status:"playing",
@@ -484,14 +335,18 @@ async function joinRoom(){
       })
       .eq("id",data.id)
       .is("guest_id",null)
-      .select()
+      .eq("status","waiting")
+      .select("*")
       .maybeSingle();
 
-    if(updateError || !updated){
-      alert("加入失敗，房間可能已被其他玩家加入。");
+    if(updateError){
+      alert("加入失敗："+updateError.message);
       return;
     }
-
+    if(!updated){
+      alert("房間已被加入或更新權限不足。");
+      return;
+    }
     return enterRoom(updated,"white");
   }
 
@@ -499,285 +354,259 @@ async function joinRoom(){
 }
 
 async function enterRoom(data,role){
-  if(roomChannel) await db.removeChannel(roomChannel);
-  if(chatChannel) await db.removeChannel(chatChannel);
+  if(roomChannel)await db.removeChannel(roomChannel);
+  if(chatChannel)await db.removeChannel(chatChannel);
 
-  currentRoom = data.id;
-  roomData = data;
-  myRole = role;
+  currentRoom=data.id;
+  roomData=data;
+  myRole=role;
 
   say("roomInfo","房間代碼："+data.room_code);
-  say("role",role==="black" ? "你是黑棋" : role==="white" ? "你是白棋" : "你正在觀戰");
+  say("role",role==="black"?"你是黑棋":role==="white"?"你是白棋":"觀戰模式");
 
   show("chatPanel",true);
   renderBoard();
   renderStatus();
   await loadChat();
 
-  roomChannel = db
-    .channel("room-"+data.id)
+  roomChannel=db.channel("room-"+data.id)
     .on("postgres_changes",{
-      event:"*",
+      event:"UPDATE",
       schema:"public",
       table:"gomoku_rooms",
       filter:"id=eq."+data.id
     },payload=>{
       if(payload.new){
-        roomData = payload.new;
+        roomData=payload.new;
         renderBoard();
         renderStatus();
         checkResult();
       }
-    })
-    .subscribe();
+    }).subscribe();
 
-  chatChannel = db
-    .channel("chat-"+data.id)
+  chatChannel=db.channel("chat-"+data.id)
     .on("postgres_changes",{
       event:"INSERT",
       schema:"public",
       table:"gomoku_messages",
       filter:"room_id=eq."+data.id
-    },()=>loadChat())
-    .subscribe();
+    },()=>loadChat()).subscribe();
 
   startTimer();
 }
 
 function renderBoard(){
-  if(!roomData) return;
+  if(!roomData)return;
+  const board=Array.isArray(roomData.board)?roomData.board:emptyBoard();
+  const history=Array.isArray(roomData.history)?roomData.history:[];
+  const last=history.length?history[history.length-1]:null;
 
-  const board = Array.isArray(roomData.board)
-    ? roomData.board
-    : emptyBoard();
-
-  const history = Array.isArray(roomData.history)
-    ? roomData.history
-    : [];
-
-  const last = history.length ? history[history.length-1] : null;
-  const root = $("board");
-  root.innerHTML = "";
+  const root=$("board");
+  root.innerHTML="";
 
   for(let i=0;i<225;i++){
-    const cell = document.createElement("button");
-    cell.className = "cell";
+    const cell=document.createElement("button");
+    cell.className="cell";
+    if(board[i]===1)cell.classList.add("black");
+    if(board[i]===2)cell.classList.add("white");
+    if(last&&last.index===i)cell.classList.add("last");
 
-    if(board[i]===1) cell.classList.add("black");
-    if(board[i]===2) cell.classList.add("white");
-    if(last && last.index===i) cell.classList.add("last");
-
-    cell.disabled = !!board[i] || myRole==="spectator";
-    cell.onclick = ()=>play(i);
+    cell.disabled=!!board[i]||myRole==="spectator"||
+      roomData.status!=="playing";
+    cell.onclick=()=>play(i);
     root.appendChild(cell);
   }
 }
 
 function renderStatus(){
-  if(!roomData) return;
+  if(!roomData)return;
 
-  const status = roomData.status;
-  const turn = roomData.turn;
-
-  if(status==="waiting"){
-    say("status","等待第二位玩家加入……");
-  }else if(status==="finished"){
-    say("status",roomData.winner==="draw" ? "平手！" :
-      roomData.winner==="black" ? "黑棋獲勝！" : "白棋獲勝！");
+  if(roomData.status==="waiting"){
+    say("status","等待另一位玩家加入……");
+  }else if(roomData.status==="finished"){
+    say("status",roomData.winner==="draw"?"平手！":
+      roomData.winner==="black"?"黑棋獲勝！":"白棋獲勝！");
   }else{
-    say("status","目前輪到："+(turn==="black" ? "黑棋" : "白棋"));
+    say("status","輪到："+(roomData.turn==="black"?"黑棋":"白棋"));
   }
-
-  $("undoBtn").disabled = myRole==="spectator" || status!=="playing";
-  $("rematchBtn").disabled = myRole==="spectator" || status!=="finished";
 }
 
 function checkWin(board,index){
-  const color = board[index];
-  const row = Math.floor(index/15);
-  const col = index%15;
-  const directions = [[1,0],[0,1],[1,1],[1,-1]];
+  const color=board[index];
+  const row=Math.floor(index/15),col=index%15;
+  const dirs=[[1,0],[0,1],[1,1],[1,-1]];
 
-  for(const [dr,dc] of directions){
-    let count = 1;
-
+  for(const [dr,dc] of dirs){
+    let count=1;
     for(const sign of [-1,1]){
-      let r=row+dr*sign;
-      let c=col+dc*sign;
-
-      while(r>=0 && r<15 && c>=0 && c<15 &&
-            board[r*15+c]===color){
-        count++;
-        r+=dr*sign;
-        c+=dc*sign;
+      let r=row+dr*sign,c=col+dc*sign;
+      while(r>=0&&r<15&&c>=0&&c<15&&board[r*15+c]===color){
+        count++;r+=dr*sign;c+=dc*sign;
       }
     }
-
-    if(count>=5) return true;
+    if(count>=5)return true;
   }
-
   return false;
 }
 
 async function play(index){
-  if(!roomData || !currentRoom) return;
-  if(myRole==="spectator") return;
-  if(roomData.status!=="playing") return;
+  if(savingMove||!roomData||!currentRoom)return;
+  if(myRole==="spectator")return;
+  if(roomData.status!=="playing")return;
 
   if(roomData.turn!==myRole){
-    say("gameMsg","還沒輪到你。");
+    message("還沒輪到你。");
     return;
   }
 
-  const board = Array.isArray(roomData.board)
-    ? [...roomData.board]
-    : emptyBoard();
+  const board=Array.isArray(roomData.board)?
+    [...roomData.board]:emptyBoard();
 
-  if(board[index]!==0) return;
+  if(board[index]!==0)return;
 
-  board[index] = myRole==="black" ? 1 : 2;
+  savingMove=true;
+  board[index]=myRole==="black"?1:2;
 
-  const history = Array.isArray(roomData.history)
-    ? [...roomData.history]
-    : [];
+  const history=Array.isArray(roomData.history)?
+    [...roomData.history]:[];
 
   history.push({
-    index:index,
+    index,
     color:myRole,
     player:me.id,
     time:Date.now()
   });
 
-  let winner = null;
-  let status = "playing";
-
+  let winner=null,status="playing";
   if(checkWin(board,index)){
-    winner = myRole;
-    status = "finished";
+    winner=myRole;
+    status="finished";
   }else if(board.every(x=>x!==0)){
-    winner = "draw";
-    status = "finished";
+    winner="draw";
+    status="finished";
   }
 
-  const nextTurn = myRole==="black" ? "white" : "black";
+  const nextTurn=myRole==="black"?"white":"black";
+  message("正在送出棋步……");
 
-  const {data,error} = await db
-    .from("gomoku_rooms")
-    .update({
-      board:board,
-      history:history,
-      turn:nextTurn,
-      winner:winner,
-      status:status,
-      last_move_at:new Date().toISOString(),
-      updated_at:new Date().toISOString()
-    })
-    .eq("id",currentRoom)
-    .eq("turn",myRole)
-    .eq("status","playing")
-    .select()
-    .maybeSingle();
+  try{
+    const {data,error}=await db.from("gomoku_rooms")
+      .update({
+        board,
+        history,
+        turn:nextTurn,
+        winner,
+        status,
+        last_move_at:new Date().toISOString(),
+        updated_at:new Date().toISOString()
+      })
+      .eq("id",currentRoom)
+      .eq("turn",myRole)
+      .eq("status","playing")
+      .select("*");
 
-  if(error){
-    say("gameMsg","出棋失敗："+error.message);
-    return;
+    if(error){
+      message("出棋失敗："+error.message);
+      return;
+    }
+
+    if(!data||data.length===0){
+      // 再讀一次資料，確認是否另一位玩家已經下棋
+      const {data:fresh,error:readError}=await db.from("gomoku_rooms")
+        .select("*").eq("id",currentRoom).maybeSingle();
+
+      if(readError){
+        message("更新筆數為 0，重新讀取也失敗："+readError.message);
+        return;
+      }
+
+      if(fresh){
+        roomData=fresh;
+        renderBoard();
+        renderStatus();
+      }
+
+      message("棋步未寫入：請確認目前回合及房間更新權限。");
+      return;
+    }
+
+    roomData=data[0];
+    renderBoard();
+    renderStatus();
+    message("出棋成功！");
+    await checkResult();
+
+  }catch(err){
+    message("出棋發生錯誤："+err.message);
+  }finally{
+    savingMove=false;
   }
-
-  if(!data){
-    say("gameMsg","棋局已更新，請稍候同步。");
-    return;
-  }
-
-  roomData = data;
-  renderBoard();
-  renderStatus();
-  await checkResult();
 }
 
 async function checkResult(){
-  if(!roomData || roomData.status!=="finished") return;
-
-  const winner = roomData.winner;
-
-  if(winner==="draw"){
+  if(!roomData||roomData.status!=="finished")return;
+  if(roomData.winner==="draw"){
     await updateStats("draw");
-  }else if(winner===myRole){
+  }else if(roomData.winner===myRole){
     await updateStats("win");
-  }else if(myRole==="black" || myRole==="white"){
+  }else if(myRole==="black"||myRole==="white"){
     await updateStats("loss");
   }
 }
 
 async function requestUndo(){
-  if(!roomData || myRole==="spectator") return;
+  if(!roomData||myRole==="spectator")return;
 
-  const request = roomData.undo_request;
+  if(roomData.undo_request&&roomData.undo_request!==me.id){
+    const history=Array.isArray(roomData.history)?
+      [...roomData.history]:[];
+    if(!history.length)return;
 
-  if(request && request!==me.id){
-    const history = Array.isArray(roomData.history)
-      ? [...roomData.history]
-      : [];
+    const last=history.pop();
+    const board=[...roomData.board];
+    board[last.index]=0;
 
-    if(history.length===0) return;
-
-    const last = history.pop();
-    const board = [...roomData.board];
-    board[last.index] = 0;
-
-    const {data,error} = await db
-      .from("gomoku_rooms")
+    const {data,error}=await db.from("gomoku_rooms")
       .update({
-        board:board,
-        history:history,
+        board,
+        history,
         turn:last.color,
         undo_request:null,
         last_move_at:new Date().toISOString()
       })
       .eq("id",currentRoom)
-      .select()
-      .single();
+      .select("*").single();
 
-    if(error){
-      say("gameMsg","悔棋失敗："+error.message);
-      return;
-    }
-
-    roomData = data;
+    if(error){message("悔棋失敗："+error.message);return;}
+    roomData=data;
     renderBoard();
     renderStatus();
-    say("gameMsg","已同意悔棋。");
+    message("已同意悔棋。");
     return;
   }
 
-  if(request===me.id){
-    say("gameMsg","已經送出悔棋申請，等待對方同意。");
+  if(roomData.undo_request===me.id){
+    message("已送出悔棋申請。");
     return;
   }
 
-  const {error} = await db
-    .from("gomoku_rooms")
+  const {error}=await db.from("gomoku_rooms")
     .update({undo_request:me.id})
     .eq("id",currentRoom);
 
-  if(error){
-    say("gameMsg","申請失敗："+error.message);
-  }else{
-    say("gameMsg","已送出悔棋申請，等待對方同意。");
-  }
+  message(error?"申請失敗："+error.message:"已送出悔棋申請。");
 }
 
 async function rematch(){
-  if(!roomData || myRole==="spectator") return;
+  if(!roomData||myRole==="spectator")return;
 
-  let votes = Array.isArray(roomData.rematch_votes)
-    ? [...roomData.rematch_votes]
-    : [];
+  let votes=Array.isArray(roomData.rematch_votes)?
+    [...roomData.rematch_votes]:[];
 
-  if(!votes.includes(me.id)) votes.push(me.id);
+  if(!votes.includes(me.id))votes.push(me.id);
 
   if(votes.length>=2){
-    const {data,error} = await db
-      .from("gomoku_rooms")
+    const {data,error}=await db.from("gomoku_rooms")
       .update({
         board:emptyBoard(),
         history:[],
@@ -789,126 +618,99 @@ async function rematch(){
         last_move_at:new Date().toISOString()
       })
       .eq("id",currentRoom)
-      .select()
-      .single();
+      .select("*").single();
 
-    if(error){
-      say("gameMsg","重新開始失敗："+error.message);
-      return;
-    }
-
-    roomData = data;
+    if(error){message("再戰失敗："+error.message);return;}
+    roomData=data;
     renderBoard();
     renderStatus();
-    say("gameMsg","新的一局開始！");
+    message("新的一局開始！");
   }else{
-    const {error} = await db
-      .from("gomoku_rooms")
+    const {error}=await db.from("gomoku_rooms")
       .update({rematch_votes:votes})
       .eq("id",currentRoom);
 
-    if(error){
-      say("gameMsg","投票失敗："+error.message);
-    }else{
-      say("gameMsg","已投票，等待另一位玩家。");
-    }
+    message(error?"投票失敗："+error.message:"已投票，等待另一位玩家。");
   }
 }
 
 async function loadChat(){
-  if(!currentRoom) return;
+  if(!currentRoom)return;
 
-  const {data,error} = await db
-    .from("gomoku_messages")
-    .select("*")
-    .eq("room_id",currentRoom)
-    .order("created_at",{ascending:true})
-    .limit(100);
+  const {data,error}=await db.from("gomoku_messages")
+    .select("*").eq("room_id",currentRoom)
+    .order("created_at",{ascending:true}).limit(100);
 
   if(error){
-    console.error("聊天讀取失敗",error);
+    console.error("聊天讀取失敗："+error.message);
     return;
   }
 
-  const box = $("chat");
-  box.innerHTML = "";
+  const box=$("chat");
+  box.innerHTML="";
 
-  (data || []).forEach(m=>{
-    const line = document.createElement("div");
-    line.textContent =
-      (m.sender_id===me.id ? "我：" : "玩家：") + m.message;
+  (data||[]).forEach(m=>{
+    const line=document.createElement("div");
+    line.textContent=(m.sender_id===me.id?"我：":"玩家：")+m.message;
     box.appendChild(line);
   });
 
-  box.scrollTop = box.scrollHeight;
+  box.scrollTop=box.scrollHeight;
 }
 
 async function sendChat(){
-  if(!currentRoom || !me) return;
+  if(!currentRoom||!me)return;
+  const messageText=$("chatInput").value.trim();
+  if(!messageText)return;
 
-  const message = $("chatInput").value.trim();
-  if(!message) return;
-
-  const {error} = await db
-    .from("gomoku_messages")
-    .insert({
-      room_id:currentRoom,
-      sender_id:me.id,
-      message:message
-    });
+  const {error}=await db.from("gomoku_messages").insert({
+    room_id:currentRoom,
+    sender_id:me.id,
+    message:messageText
+  });
 
   if(error){
-    alert("傳送失敗："+error.message);
+    alert("聊天傳送失敗："+error.message);
     return;
   }
 
-  $("chatInput").value = "";
+  $("chatInput").value="";
   await loadChat();
 }
 
 function startTimer(){
-  if(timerInterval) clearInterval(timerInterval);
+  if(timerInterval)clearInterval(timerInterval);
 
-  timerInterval = setInterval(()=>{
-    if(!roomData || roomData.status!=="playing"){
+  timerInterval=setInterval(()=>{
+    if(!roomData||roomData.status!=="playing"||!roomData.last_move_at){
       say("timer","倒數：--");
       return;
     }
 
-    if(!roomData.last_move_at){
-      say("timer","倒數：30");
-      return;
-    }
-
-    const elapsed = Math.floor(
+    const elapsed=Math.floor(
       (Date.now()-new Date(roomData.last_move_at).getTime())/1000
     );
-
-    const left = Math.max(0,30-elapsed);
-    say("timer","倒數："+left+" 秒");
+    say("timer","倒數："+Math.max(0,30-elapsed)+" 秒");
   },1000);
 }
 
-db.auth.onAuthStateChange(async (event,session)=>{
-  if(session && !me){
-    me = session.user;
-    await refreshAccount();
+db.auth.onAuthStateChange((event,session)=>{
+  if(session){
+    me=session.user;
+    refreshAccount();
   }
 });
 
 async function init(){
-  const {data,error} = await db.auth.getSession();
-
+  const {data,error}=await db.auth.getSession();
   if(error){
-    setAuthMessage("讀取登入狀態失敗："+error.message);
+    say("authMsg","讀取登入狀態失敗："+error.message);
     return;
   }
 
   if(data.session){
-    me = data.session.user;
+    me=data.session.user;
     await refreshAccount();
-  }else{
-    show("authPanel",true);
   }
 }
 
