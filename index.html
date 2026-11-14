@@ -8,445 +8,911 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 *{box-sizing:border-box}
-body{margin:0;background:#101827;color:#f5f7fb;font-family:Arial,"Noto Sans TC",sans-serif;padding:16px}
-main{max-width:850px;margin:auto}
-h1{text-align:center;color:#8bbcff}
-.panel{background:#1d2a40;border:1px solid #34445e;border-radius:16px;padding:15px;margin:12px 0}
-button,input{font-size:16px;border-radius:9px;padding:11px;border:0;margin:4px}
-button{background:#397bd7;color:white;font-weight:bold}
-button:disabled{opacity:.4}
-input{max-width:100%;background:#edf2fa;color:#172033}
-.row{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-.auth-input{width:min(100%,420px)}
-#board{display:grid;grid-template-columns:repeat(15,1fr);width:min(94vw,570px);aspect-ratio:1;margin:12px auto;background:#d8ad70;padding:8px;border-radius:5px}
-.cell{position:relative;border:0;background:transparent;padding:0;margin:0;border-radius:0;min-width:0;aspect-ratio:1}
-.cell:before{content:"";position:absolute;left:0;right:0;top:50%;height:1px;background:#594329}
-.cell:after{content:"";position:absolute;top:0;bottom:0;left:50%;width:1px;background:#594329}
-.stone{position:absolute;z-index:2;width:82%;height:82%;left:9%;top:9%;border-radius:50%;box-shadow:0 2px 4px #0008}
-.black{background:#101010}
-.white{background:#fff;border:1px solid #777}
-#status{text-align:center;font-size:18px;font-weight:bold}
-#timer{text-align:center}
-#chat{height:160px;overflow:auto;background:#111c2c;padding:10px;border-radius:9px}
-.msg{padding:4px 0;border-bottom:1px solid #34445e;overflow-wrap:anywhere}
-.small{font-size:13px;color:#b8c5d8}
-.stat{display:inline-block;padding:8px 12px;background:#101c2e;border-radius:9px;margin:3px}
+body{margin:0;background:#101827;color:#fff;font-family:Arial,"Noto Sans TC",sans-serif;padding:16px}
+.container{max-width:900px;margin:auto}
+h1{text-align:center;color:#f5c451}
+.panel{background:#1c293b;border:1px solid #34445d;border-radius:14px;padding:15px;margin:14px 0}
+input,button{font-size:15px;border-radius:9px;padding:11px;border:0}
+input{background:#edf2f7;color:#111;width:100%;margin:5px 0}
+button{background:#e9b949;color:#172033;font-weight:bold;margin:4px;cursor:pointer}
+button.secondary{background:#40536e;color:white}
+button.danger{background:#c74c4c;color:white}
+button:disabled{opacity:.45}
+.small{color:#aebbd0;font-size:13px}
+#board{display:grid;grid-template-columns:repeat(15,minmax(0,1fr));gap:2px;background:#b78a4b;padding:5px;border-radius:8px;max-width:650px;margin:12px auto}
+.cell{aspect-ratio:1;background:#e8c58c;border-radius:2px;display:flex;align-items:center;justify-content:center;padding:0;margin:0;min-width:0;position:relative}
+.cell.black:after,.cell.white:after{content:"";width:76%;height:76%;border-radius:50%;display:block}
+.cell.black:after{background:#151515;box-shadow:0 2px 4px #555}
+.cell.white:after{background:#fff;box-shadow:0 2px 4px #777}
+.cell.last{outline:2px solid #e33;outline-offset:-2px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.row input{flex:1;min-width:120px}
+#chat{height:150px;overflow:auto;background:#101827;border-radius:8px;padding:10px;font-size:14px}
+.stat{display:inline-block;background:#101827;padding:10px 14px;border-radius:9px;margin:4px}
+.hidden{display:none}
+@media(max-width:480px){body{padding:8px}.panel{padding:10px}#board{gap:1px;padding:3px}.cell{border-radius:1px}}
 </style>
 </head>
 <body>
-<main>
-<h1>⚫ 五子棋 2.0 ⚪</h1>
+<div class="container">
+<h1>五子棋 2.0</h1>
 
-<div class="panel">
-<h3>帳號系統</h3>
-<div id="loginStatus">正在確認登入狀態...</div>
-<div class="small" id="uidText"></div>
-
-<input id="emailInput" class="auth-input" type="email" placeholder="Email">
-<br>
-<input id="passwordInput" class="auth-input" type="password" placeholder="密碼（至少 6 個字元）">
-
+<section class="panel" id="authPanel">
+<h3>帳號登入</h3>
+<input id="email" type="email" placeholder="Email，例如 name@gmail.com" autocomplete="email">
+<input id="password" type="password" placeholder="密碼（至少 6 個字元）" autocomplete="current-password">
 <div class="row">
-<button id="guestBtn">訪客登入</button>
-<button id="emailLoginBtn">Email 登入</button>
-<button id="registerBtn">Email 註冊</button>
+<button onclick="guestLogin()">訪客登入</button>
+<button onclick="emailLogin()">Email 登入</button>
+<button onclick="emailRegister()">註冊帳號</button>
 </div>
 <div class="row">
-<button id="upgradeBtn">升級訪客帳號</button>
-<button id="resetBtn">忘記密碼</button>
-<button id="logoutBtn">登出</button>
+<button class="secondary" onclick="upgradeGuest()">將訪客升級成 Email 帳號</button>
+<button class="secondary" onclick="resetPassword()">忘記密碼</button>
 </div>
-<p class="small">訪客可以直接遊玩。升級帳號會保留目前玩家 ID。</p>
-<p id="authMessage" class="small"></p>
-</div>
+<p id="authMsg" class="small">請登入或使用訪客模式。</p>
+</section>
 
-<div class="panel">
-<h3>遊戲房間</h3>
+<section class="panel hidden" id="userPanel">
 <div class="row">
-<button id="createBtn">建立房間</button>
-<input id="roomInput" placeholder="輸入房間代碼" maxlength="8">
-<button id="joinBtn">加入房間</button>
+<div id="userText">登入中</div>
+<button class="danger" onclick="logout()">登出</button>
 </div>
-<p id="roomInfo">尚未加入房間</p>
-<p class="small">建立者為黑棋，加入者為白棋，其他玩家可以觀戰。</p>
-</div>
+</section>
 
-<div class="panel">
-<div id="status">請先登入並建立或加入房間</div>
-<div id="timer">倒數：--</div>
+<section class="panel hidden" id="statsPanel">
+<h3>我的戰績</h3>
+<div id="stats"></div>
+</section>
+
+<section class="panel hidden" id="gamePanel">
+<h3>房間</h3>
+<div class="row">
+<button onclick="createRoom()">建立房間</button>
+<input id="roomCode" placeholder="輸入房間代碼">
+<button onclick="joinRoom()">加入房間</button>
+</div>
+<p id="roomInfo" class="small">尚未進入房間</p>
+<p id="role" class="small"></p>
+<hr>
+<div class="row">
+<div id="status">等待遊戲</div>
+<div id="timer" class="small">倒數：--</div>
+</div>
 <div id="board"></div>
-<div class="row" style="justify-content:center">
-<button id="undoBtn" disabled>提出／同意悔棋</button>
-<button id="rematchBtn" disabled>再戰投票</button>
+<div class="row">
+<button class="secondary" id="undoBtn" onclick="requestUndo()">申請悔棋</button>
+<button class="secondary" id="rematchBtn" onclick="rematch()">再戰投票</button>
 </div>
-<p class="small" id="roleText" style="text-align:center"></p>
-</div>
+<p id="gameMsg" class="small"></p>
+</section>
 
-<div class="panel">
-<h3>聊天室</h3>
+<section class="panel hidden" id="chatPanel">
+<h3>房間聊天</h3>
 <div id="chat"></div>
 <div class="row">
-<input id="chatInput" placeholder="輸入訊息..." style="flex:1">
-<button id="sendBtn">傳送</button>
+<input id="chatInput" placeholder="輸入訊息">
+<button onclick="sendChat()">傳送</button>
 </div>
+</section>
 </div>
-
-<div class="panel">
-<h3>個人戰績</h3>
-<div id="stats">請先登入</div>
-</div>
-<p class="small" style="text-align:center">五子棋 2.0 · Supabase 即時連線</p>
-</main>
 
 <script>
-const SUPABASE_URL="https://djtaiqsrziuflijzfxym.supabase.co";
-const SUPABASE_KEY="sb_publishable_oRAUcMolkILOwCTbdW3rAQ_KY4wjMEb";
-const db=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+const SUPABASE_URL = "https://djtaiqsrziuflijzfxym.supabase.co";
+const SUPABASE_KEY = "sb_publishable_oRAUcMolkILOwCTbdW3rAQ_KY4wjMEb";
 
-let me=null,room=null,myRole="spectator",channel=null;
-let timerHandle=null,busy=false;
-const $=id=>document.getElementById(id);
-const emptyBoard=()=>Array(225).fill(null);
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-function message(t){$("authMessage").textContent=t}
-function sayStatus(t){$("status").textContent=t}
-function code(){return Math.random().toString(36).substring(2,7).toUpperCase()}
-function isGuest(){return !!me && !me.email}
+let me = null;
+let currentRoom = null;
+let myRole = null;
+let roomChannel = null;
+let chatChannel = null;
+let roomData = null;
+let timerInterval = null;
+let lastMoveId = null;
 
-function updateAccountUI(){
- if(!me){
-  $("loginStatus").textContent="尚未登入";
-  $("uidText").textContent="";
-  $("upgradeBtn").disabled=true;
-  $("logoutBtn").disabled=true;
-  $("stats").textContent="請先登入";
-  return;
- }
- $("uidText").textContent="玩家 ID："+me.id;
- $("loginStatus").textContent=isGuest()?"訪客帳號已登入":"Email 帳號已登入："+me.email;
- $("upgradeBtn").disabled=!isGuest();
- $("logoutBtn").disabled=false;
+const $ = id => document.getElementById(id);
+const say = (id, msg) => $(id).textContent = msg;
+
+function show(id, yes=true){
+  $(id).classList.toggle("hidden", !yes);
+}
+
+function getEmail(){
+  return $("email").value.trim();
+}
+
+function getPassword(){
+  return $("password").value;
+}
+
+function validEmail(email){
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email);
+}
+
+function setAuthMessage(msg){
+  say("authMsg", msg);
 }
 
 async function refreshAccount(){
- const {data,error}=await db.auth.getUser();
- if(error)throw error;
- me=data.user;
- updateAccountUI();
- if(me)await loadStats();
+  const {data,error} = await db.auth.getUser();
+  if(error){
+    console.error(error);
+    return;
+  }
+
+  me = data.user || null;
+
+  if(me){
+    show("authPanel",false);
+    show("userPanel",true);
+    show("gamePanel",true);
+    show("statsPanel",true);
+
+    const label = me.email ? me.email : "訪客帳號";
+    say("userText","目前登入："+label+"｜ID："+me.id);
+    await loadStats();
+  }else{
+    show("authPanel",true);
+    show("userPanel",false);
+    show("gamePanel",false);
+    show("statsPanel",false);
+  }
 }
 
 async function guestLogin(){
- if(me){alert("目前已登入，請先登出。");return}
- message("正在登入訪客...");
- const {data,error}=await db.auth.signInAnonymously();
- if(error){message("訪客登入失敗："+error.message);return}
- me=data.user;
- updateAccountUI();
- await loadStats();
- message("訪客登入成功！");
+  setAuthMessage("正在登入訪客帳號……");
+
+  const {data,error} = await db.auth.signInAnonymously();
+
+  if(error){
+    setAuthMessage("訪客登入失敗："+error.message);
+    return;
+  }
+
+  me = data.user;
+  await refreshAccount();
+  setAuthMessage("訪客登入成功！");
 }
 
 async function emailRegister(){
- const email=$("emailInput").value.trim();
- const password=$("passwordInput").value;
- if(!email||password.length<6){alert("請輸入有效 Email 和至少 6 個字元的密碼");return}
- message("正在註冊...");
- const {data,error}=await db.auth.signUp({email,password});
- if(error){message("註冊失敗："+error.message);return}
- if(data.session){
-  me=data.user;updateAccountUI();await loadStats();
-  message("註冊成功！");
- }else{
-  message("註冊成功！請先到信箱驗證，再登入。");
- }
+  const email = getEmail();
+  const password = getPassword();
+
+  if(!email || !validEmail(email)){
+    setAuthMessage("請輸入正確的 Email，例如 name@gmail.com");
+    return;
+  }
+
+  if(password.length < 6){
+    setAuthMessage("密碼至少需要 6 個字元。");
+    return;
+  }
+
+  setAuthMessage("正在註冊……");
+
+  const {data,error} = await db.auth.signUp({
+    email:email,
+    password:password
+  });
+
+  if(error){
+    setAuthMessage("註冊失敗："+error.message);
+    return;
+  }
+
+  if(data.session){
+    me = data.user;
+    await refreshAccount();
+    setAuthMessage("註冊成功！");
+  }else{
+    setAuthMessage("註冊資料已送出，請查看 Email 完成驗證。");
+  }
 }
 
 async function emailLogin(){
- const email=$("emailInput").value.trim();
- const password=$("passwordInput").value;
- if(!email||!password){alert("請輸入 Email 和密碼");return}
- message("正在登入...");
- const {data,error}=await db.auth.signInWithPassword({email,password});
- if(error){message("登入失敗："+error.message);return}
- me=data.user;updateAccountUI();await loadStats();
- message("Email 登入成功！");
+  const email = getEmail();
+  const password = getPassword();
+
+  if(!email || !validEmail(email)){
+    setAuthMessage("請輸入正確的 Email。");
+    return;
+  }
+
+  if(!password){
+    setAuthMessage("請輸入密碼。");
+    return;
+  }
+
+  setAuthMessage("正在登入……");
+
+  const {data,error} = await db.auth.signInWithPassword({
+    email:email,
+    password:password
+  });
+
+  if(error){
+    setAuthMessage("登入失敗："+error.message);
+    return;
+  }
+
+  me = data.user;
+  await refreshAccount();
+  setAuthMessage("登入成功！");
 }
 
 async function upgradeGuest(){
- if(!me||!isGuest()){alert("請先使用訪客帳號登入");return}
- const email=$("emailInput").value.trim();
- const password=$("passwordInput").value;
- if(!email||password.length<6){alert("請輸入有效 Email 和至少 6 個字元的密碼");return}
- const oldId=me.id;
- message("正在升級帳號...");
- const {data,error}=await db.auth.updateUser({email,password});
- if(error){message("升級失敗："+error.message);return}
- me=data.user;
- updateAccountUI();
- await loadStats();
- if(me.id!==oldId){message("帳號 ID 不一致，請停止操作並檢查帳號。");return}
- message("升級要求已送出，玩家 ID 不變！若需驗證，請先到信箱完成驗證。");
+  if(!me){
+    setAuthMessage("請先登入訪客帳號。");
+    return;
+  }
+
+  if(me.email){
+    setAuthMessage("目前已經是 Email 帳號，不需要升級。");
+    return;
+  }
+
+  const email = getEmail();
+  const password = getPassword();
+
+  if(!email){
+    setAuthMessage("Email 欄位是空的，請先輸入 Email！");
+    $("email").focus();
+    return;
+  }
+
+  if(!validEmail(email)){
+    setAuthMessage("Email 格式不正確，例如 name@gmail.com");
+    $("email").focus();
+    return;
+  }
+
+  if(password.length < 6){
+    setAuthMessage("密碼至少需要 6 個字元。");
+    $("password").focus();
+    return;
+  }
+
+  const oldId = me.id;
+  setAuthMessage("正在升級帳號……");
+
+  const {data,error} = await db.auth.updateUser({
+    email:email,
+    password:password
+  });
+
+  if(error){
+    setAuthMessage("升級失敗："+error.message);
+    return;
+  }
+
+  me = data.user;
+
+  if(me.id !== oldId){
+    setAuthMessage("帳號 ID 發生變化，請聯絡管理員檢查。");
+    return;
+  }
+
+  await refreshAccount();
+
+  if(!data.user.email_confirmed_at){
+    setAuthMessage("升級資料已送出！請到信箱點擊驗證連結。");
+  }else{
+    setAuthMessage("升級成功！原本的帳號 ID 和戰績都會保留。");
+  }
 }
 
 async function resetPassword(){
- const email=$("emailInput").value.trim();
- if(!email){alert("請先輸入 Email");return}
- const {error}=await db.auth.resetPasswordForEmail(email,{
-  redirectTo:location.origin+location.pathname
- });
- message(error?"寄送失敗："+error.message:"已寄出重設密碼信，請檢查信箱。");
+  const email = getEmail();
+
+  if(!email || !validEmail(email)){
+    setAuthMessage("請先輸入正確的 Email。");
+    return;
+  }
+
+  const {error} = await db.auth.resetPasswordForEmail(email,{
+    redirectTo:location.origin
+  });
+
+  if(error){
+    setAuthMessage("寄送失敗："+error.message);
+  }else{
+    setAuthMessage("已送出重設密碼信件，請查看信箱。");
+  }
 }
 
 async function logout(){
- const {error}=await db.auth.signOut();
- if(error){alert(error.message);return}
- me=null;room=null;myRole="spectator";
- if(channel){await db.removeChannel(channel);channel=null}
- clearInterval(timerHandle);
- $("roomInfo").textContent="尚未加入房間";
- $("roleText").textContent="";
- $("chat").innerHTML="";
- $("board").innerHTML="";
- $("timer").textContent="倒數：--";
- $("undoBtn").disabled=true;
- $("rematchBtn").disabled=true;
- sayStatus("請先登入並建立或加入房間");
- updateAccountUI();
- message("已登出");
+  if(roomChannel) await db.removeChannel(roomChannel);
+  if(chatChannel) await db.removeChannel(chatChannel);
+
+  roomChannel = null;
+  chatChannel = null;
+  currentRoom = null;
+  myRole = null;
+  roomData = null;
+
+  const {error} = await db.auth.signOut();
+
+  if(error){
+    alert("登出失敗："+error.message);
+    return;
+  }
+
+  location.reload();
 }
 
 async function loadStats(){
- if(!me)return;
- const {data,error}=await db.from("gomoku_stats").select("*").eq("user_id",me.id).maybeSingle();
- if(error){$("stats").textContent="戰績讀取失敗："+error.message;return}
- const s=data||{wins:0,losses:0,draws:0};
- $("stats").innerHTML=`<span class="stat">勝場 ${s.wins}</span><span class="stat">敗場 ${s.losses}</span><span class="stat">平手 ${s.draws}</span>`;
+  if(!me) return;
+
+  const {data,error} = await db
+    .from("gomoku_stats")
+    .select("*")
+    .eq("user_id",me.id)
+    .maybeSingle();
+
+  if(error){
+    say("stats","讀取戰績失敗："+error.message);
+    return;
+  }
+
+  const s = data || {wins:0,losses:0,draws:0};
+
+  $("stats").innerHTML = `
+    <span class="stat">勝場：${s.wins || 0}</span>
+    <span class="stat">敗場：${s.losses || 0}</span>
+    <span class="stat">平手：${s.draws || 0}</span>
+  `;
 }
 
-async function saveResult(result,roomId){
- const key="gomoku_result_"+roomId;
- if(localStorage.getItem(key))return;
- const {data,error}=await db.from("gomoku_stats").select("*").eq("user_id",me.id).maybeSingle();
- if(error)return;
- const s=data||{wins:0,losses:0,draws:0};
- const next={
-  user_id:me.id,
-  wins:s.wins+(result==="win"?1:0),
-  losses:s.losses+(result==="loss"?1:0),
-  draws:s.draws+(result==="draw"?1:0),
-  updated_at:new Date().toISOString()
- };
- const {error:saveError}=await db.from("gomoku_stats").upsert(next,{onConflict:"user_id"});
- if(!saveError){localStorage.setItem(key,"saved");await loadStats()}
+async function updateStats(result){
+  if(!me || !currentRoom) return;
+
+  const key = "gomoku_result_"+currentRoom;
+  if(localStorage.getItem(key)) return;
+
+  const {data,error} = await db
+    .from("gomoku_stats")
+    .select("*")
+    .eq("user_id",me.id)
+    .maybeSingle();
+
+  if(error){
+    console.error("讀取戰績失敗",error);
+    return;
+  }
+
+  const old = data || {
+    user_id:me.id,
+    wins:0,
+    losses:0,
+    draws:0
+  };
+
+  const next = {
+    user_id:me.id,
+    wins:(old.wins || 0) + (result==="win" ? 1 : 0),
+    losses:(old.losses || 0) + (result==="loss" ? 1 : 0),
+    draws:(old.draws || 0) + (result==="draw" ? 1 : 0),
+    updated_at:new Date().toISOString()
+  };
+
+  const saved = await db
+    .from("gomoku_stats")
+    .upsert(next,{onConflict:"user_id"});
+
+  if(saved.error){
+    console.error("儲存戰績失敗",saved.error);
+    return;
+  }
+
+  localStorage.setItem(key,"1");
+  await loadStats();
+}
+
+function emptyBoard(){
+  return Array(225).fill(0);
+}
+
+function makeCode(){
+  return Math.random().toString(36).substring(2,7).toUpperCase();
 }
 
 async function createRoom(){
- if(!me||busy){alert("請先登入");return}
- busy=true;
- const {data,error}=await db.from("gomoku_rooms").insert({
-  room_code:code(),host_id:me.id,status:"waiting",
-  board:emptyBoard(),history:[],turn:"black",
-  last_move_at:new Date().toISOString(),rematch_votes:[]
- }).select().single();
- busy=false;
- if(error){alert("建立房間失敗："+error.message);return}
- await enterRoom(data);
+  if(!me) return alert("請先登入。");
+
+  const code = makeCode();
+
+  const {data,error} = await db
+    .from("gomoku_rooms")
+    .insert({
+      room_code:code,
+      host_id:me.id,
+      guest_id:null,
+      status:"waiting",
+      board:emptyBoard(),
+      turn:"black",
+      winner:null,
+      undo_request:null,
+      rematch_votes:[],
+      history:[]
+    })
+    .select()
+    .single();
+
+  if(error){
+    alert("建立房間失敗："+error.message);
+    return;
+  }
+
+  await enterRoom(data,"black");
 }
 
 async function joinRoom(){
- if(!me||busy){alert("請先登入");return}
- const roomCode=$("roomInput").value.trim().toUpperCase();
- if(!roomCode){alert("請輸入房間代碼");return}
- busy=true;
- const {data:found,error}=await db.from("gomoku_rooms").select("*").eq("room_code",roomCode).maybeSingle();
- if(error||!found){busy=false;alert("找不到房間："+(error?.message||"代碼錯誤"));return}
- if(found.host_id===me.id||found.guest_id===me.id){
-  busy=false;await enterRoom(found);return;
- }
- if(found.status==="waiting"&&!found.guest_id){
-  const {data:joined,error:joinError}=await db.from("gomoku_rooms")
-   .update({guest_id:me.id,status:"playing",last_move_at:new Date().toISOString()})
-   .eq("id",found.id).eq("guest_id",null).eq("status","waiting").select().maybeSingle();
-  busy=false;
-  if(joinError||!joined){alert("加入失敗，房間可能已被其他玩家加入："+(joinError?.message||""));return}
-  await enterRoom(joined);return;
- }
- busy=false;
- await enterRoom(found);
-}
+  if(!me) return alert("請先登入。");
 
-async function enterRoom(data){
- room=data;
- myRole=room.host_id===me.id?"black":room.guest_id===me.id?"white":"spectator";
- $("roomInfo").textContent="房間代碼："+room.room_code;
- $("roleText").textContent=myRole==="black"?"你的身分：黑棋":myRole==="white"?"你的身分：白棋":"你的身分：觀戰者";
- if(channel)await db.removeChannel(channel);
- channel=db.channel("room-"+room.id)
- .on("postgres_changes",{event:"UPDATE",schema:"public",table:"gomoku_rooms",filter:"id=eq."+room.id},payload=>{
-  room=payload.new;render();loadChat();checkResult();
- })
- .on("postgres_changes",{event:"INSERT",schema:"public",table:"gomoku_messages",filter:"room_id=eq."+room.id},()=>loadChat())
- .subscribe();
- render();await loadChat();sayStatus(room.status==="waiting"?"等待另一位玩家加入":"遊戲進行中");
-}
+  const code = $("roomCode").value.trim().toUpperCase();
 
-function render(){
- if(!room)return;
- const board=Array.isArray(room.board)&&room.board.length===225?room.board:emptyBoard();
- $("board").innerHTML="";
- board.forEach((stone,index)=>{
-  const b=document.createElement("button");b.className="cell";
-  if(stone){const s=document.createElement("span");s.className="stone "+(stone==="black"?"black":"white");b.appendChild(s)}
-  b.onclick=()=>play(index);$("board").appendChild(b);
- });
- if(room.status==="waiting")sayStatus("等待白棋加入房間");
- else if(room.status==="finished")sayStatus(room.winner==="draw"?"平手！":room.winner===me.id?"你獲勝了！":"本局結束");
- else sayStatus("輪到："+(room.turn==="black"?"黑棋":"白棋"));
- $("undoBtn").disabled=myRole==="spectator"||room.status!=="playing";
- $("rematchBtn").disabled=myRole==="spectator"||room.status!=="finished";
- updateTimer();
-}
+  if(!code) return alert("請輸入房間代碼。");
 
-function fiveInRow(board,index,color){
- const row=Math.floor(index/15),col=index%15;
- for(const [dr,dc] of [[1,0],[0,1],[1,1],[1,-1]]){
-  let count=1;
-  for(const sign of [-1,1]){
-   let r=row+dr*sign,c=col+dc*sign;
-   while(r>=0&&r<15&&c>=0&&c<15&&board[r*15+c]===color){
-    count++;r+=dr*sign;c+=dc*sign;
-   }
+  const {data,error} = await db
+    .from("gomoku_rooms")
+    .select("*")
+    .eq("room_code",code)
+    .maybeSingle();
+
+  if(error || !data){
+    alert("找不到房間，請確認代碼。");
+    return;
   }
-  if(count>=5)return true;
- }
- return false;
+
+  if(data.host_id===me.id){
+    return enterRoom(data,"black");
+  }
+
+  if(data.guest_id===me.id){
+    return enterRoom(data,"white");
+  }
+
+  if(!data.guest_id && data.status==="waiting"){
+    const {data:updated,error:updateError} = await db
+      .from("gomoku_rooms")
+      .update({
+        guest_id:me.id,
+        status:"playing",
+        updated_at:new Date().toISOString()
+      })
+      .eq("id",data.id)
+      .is("guest_id",null)
+      .select()
+      .maybeSingle();
+
+    if(updateError || !updated){
+      alert("加入失敗，房間可能已被其他玩家加入。");
+      return;
+    }
+
+    return enterRoom(updated,"white");
+  }
+
+  await enterRoom(data,"spectator");
+}
+
+async function enterRoom(data,role){
+  if(roomChannel) await db.removeChannel(roomChannel);
+  if(chatChannel) await db.removeChannel(chatChannel);
+
+  currentRoom = data.id;
+  roomData = data;
+  myRole = role;
+
+  say("roomInfo","房間代碼："+data.room_code);
+  say("role",role==="black" ? "你是黑棋" : role==="white" ? "你是白棋" : "你正在觀戰");
+
+  show("chatPanel",true);
+  renderBoard();
+  renderStatus();
+  await loadChat();
+
+  roomChannel = db
+    .channel("room-"+data.id)
+    .on("postgres_changes",{
+      event:"*",
+      schema:"public",
+      table:"gomoku_rooms",
+      filter:"id=eq."+data.id
+    },payload=>{
+      if(payload.new){
+        roomData = payload.new;
+        renderBoard();
+        renderStatus();
+        checkResult();
+      }
+    })
+    .subscribe();
+
+  chatChannel = db
+    .channel("chat-"+data.id)
+    .on("postgres_changes",{
+      event:"INSERT",
+      schema:"public",
+      table:"gomoku_messages",
+      filter:"room_id=eq."+data.id
+    },()=>loadChat())
+    .subscribe();
+
+  startTimer();
+}
+
+function renderBoard(){
+  if(!roomData) return;
+
+  const board = Array.isArray(roomData.board)
+    ? roomData.board
+    : emptyBoard();
+
+  const history = Array.isArray(roomData.history)
+    ? roomData.history
+    : [];
+
+  const last = history.length ? history[history.length-1] : null;
+  const root = $("board");
+  root.innerHTML = "";
+
+  for(let i=0;i<225;i++){
+    const cell = document.createElement("button");
+    cell.className = "cell";
+
+    if(board[i]===1) cell.classList.add("black");
+    if(board[i]===2) cell.classList.add("white");
+    if(last && last.index===i) cell.classList.add("last");
+
+    cell.disabled = !!board[i] || myRole==="spectator";
+    cell.onclick = ()=>play(i);
+    root.appendChild(cell);
+  }
+}
+
+function renderStatus(){
+  if(!roomData) return;
+
+  const status = roomData.status;
+  const turn = roomData.turn;
+
+  if(status==="waiting"){
+    say("status","等待第二位玩家加入……");
+  }else if(status==="finished"){
+    say("status",roomData.winner==="draw" ? "平手！" :
+      roomData.winner==="black" ? "黑棋獲勝！" : "白棋獲勝！");
+  }else{
+    say("status","目前輪到："+(turn==="black" ? "黑棋" : "白棋"));
+  }
+
+  $("undoBtn").disabled = myRole==="spectator" || status!=="playing";
+  $("rematchBtn").disabled = myRole==="spectator" || status!=="finished";
+}
+
+function checkWin(board,index){
+  const color = board[index];
+  const row = Math.floor(index/15);
+  const col = index%15;
+  const directions = [[1,0],[0,1],[1,1],[1,-1]];
+
+  for(const [dr,dc] of directions){
+    let count = 1;
+
+    for(const sign of [-1,1]){
+      let r=row+dr*sign;
+      let c=col+dc*sign;
+
+      while(r>=0 && r<15 && c>=0 && c<15 &&
+            board[r*15+c]===color){
+        count++;
+        r+=dr*sign;
+        c+=dc*sign;
+      }
+    }
+
+    if(count>=5) return true;
+  }
+
+  return false;
 }
 
 async function play(index){
- if(!room||busy||room.status!=="playing"||myRole==="spectator")return;
- if(room.turn!==myRole)return alert("還沒輪到你！");
- if(room.board[index])return;
- busy=true;
- const board=[...room.board];
- const history=[...(room.history||[]),room.board];
- board[index]=myRole;
- const won=fiveInRow(board,index,myRole);
- const nextTurn=myRole==="black"?"white":"black";
- const patch={board,history,turn:nextTurn,last_move_at:new Date().toISOString()};
- if(won){patch.status="finished";patch.winner=me.id}
- else if(board.every(Boolean)){patch.status="finished";patch.winner="draw"}
- const {data,error}=await db.from("gomoku_rooms").update(patch)
-  .eq("id",room.id).eq("turn",myRole).eq("status","playing").select().maybeSingle();
- busy=false;
- if(error||!data){alert("出棋失敗，可能輪到對方或棋盤已更新："+(error?.message||""));return}
- room=data;render();await checkResult();
+  if(!roomData || !currentRoom) return;
+  if(myRole==="spectator") return;
+  if(roomData.status!=="playing") return;
+
+  if(roomData.turn!==myRole){
+    say("gameMsg","還沒輪到你。");
+    return;
+  }
+
+  const board = Array.isArray(roomData.board)
+    ? [...roomData.board]
+    : emptyBoard();
+
+  if(board[index]!==0) return;
+
+  board[index] = myRole==="black" ? 1 : 2;
+
+  const history = Array.isArray(roomData.history)
+    ? [...roomData.history]
+    : [];
+
+  history.push({
+    index:index,
+    color:myRole,
+    player:me.id,
+    time:Date.now()
+  });
+
+  let winner = null;
+  let status = "playing";
+
+  if(checkWin(board,index)){
+    winner = myRole;
+    status = "finished";
+  }else if(board.every(x=>x!==0)){
+    winner = "draw";
+    status = "finished";
+  }
+
+  const nextTurn = myRole==="black" ? "white" : "black";
+
+  const {data,error} = await db
+    .from("gomoku_rooms")
+    .update({
+      board:board,
+      history:history,
+      turn:nextTurn,
+      winner:winner,
+      status:status,
+      last_move_at:new Date().toISOString(),
+      updated_at:new Date().toISOString()
+    })
+    .eq("id",currentRoom)
+    .eq("turn",myRole)
+    .eq("status","playing")
+    .select()
+    .maybeSingle();
+
+  if(error){
+    say("gameMsg","出棋失敗："+error.message);
+    return;
+  }
+
+  if(!data){
+    say("gameMsg","棋局已更新，請稍候同步。");
+    return;
+  }
+
+  roomData = data;
+  renderBoard();
+  renderStatus();
+  await checkResult();
 }
 
 async function checkResult(){
- if(!room||room.status!=="finished"||myRole==="spectator")return;
- if(room.winner==="draw")await saveResult("draw",room.id);
- else await saveResult(room.winner===me.id?"win":"loss",room.id);
+  if(!roomData || roomData.status!=="finished") return;
+
+  const winner = roomData.winner;
+
+  if(winner==="draw"){
+    await updateStats("draw");
+  }else if(winner===myRole){
+    await updateStats("win");
+  }else if(myRole==="black" || myRole==="white"){
+    await updateStats("loss");
+  }
 }
 
-async function undo(){
- if(!room||myRole==="spectator"||room.status!=="playing")return;
- if(room.undo_request&&room.undo_request!==me.id){
-  const history=[...(room.history||[])];
-  if(!history.length){alert("沒有可以悔棋的步數");return}
-  const previous=history.pop();
-  const previousTurn=room.turn==="black"?"white":"black";
-  const {data,error}=await db.from("gomoku_rooms").update({
-   board:previous,history,turn:previousTurn,undo_request:null,
-   last_move_at:new Date().toISOString()
-  }).eq("id",room.id).eq("undo_request",room.undo_request).select().single();
-  if(error)alert("悔棋失敗："+error.message);else room=data;
- }else{
-  const {data,error}=await db.from("gomoku_rooms").update({undo_request:me.id})
-   .eq("id",room.id).select().single();
-  if(error)alert("提出悔棋失敗："+error.message);
-  else{room=data;alert("已提出悔棋，請對方同意。")}
- }
- render();
+async function requestUndo(){
+  if(!roomData || myRole==="spectator") return;
+
+  const request = roomData.undo_request;
+
+  if(request && request!==me.id){
+    const history = Array.isArray(roomData.history)
+      ? [...roomData.history]
+      : [];
+
+    if(history.length===0) return;
+
+    const last = history.pop();
+    const board = [...roomData.board];
+    board[last.index] = 0;
+
+    const {data,error} = await db
+      .from("gomoku_rooms")
+      .update({
+        board:board,
+        history:history,
+        turn:last.color,
+        undo_request:null,
+        last_move_at:new Date().toISOString()
+      })
+      .eq("id",currentRoom)
+      .select()
+      .single();
+
+    if(error){
+      say("gameMsg","悔棋失敗："+error.message);
+      return;
+    }
+
+    roomData = data;
+    renderBoard();
+    renderStatus();
+    say("gameMsg","已同意悔棋。");
+    return;
+  }
+
+  if(request===me.id){
+    say("gameMsg","已經送出悔棋申請，等待對方同意。");
+    return;
+  }
+
+  const {error} = await db
+    .from("gomoku_rooms")
+    .update({undo_request:me.id})
+    .eq("id",currentRoom);
+
+  if(error){
+    say("gameMsg","申請失敗："+error.message);
+  }else{
+    say("gameMsg","已送出悔棋申請，等待對方同意。");
+  }
 }
 
 async function rematch(){
- if(!room||myRole==="spectator"||room.status!=="finished")return;
- let votes=[...(room.rematch_votes||[])];
- if(!votes.includes(me.id))votes.push(me.id);
- let patch={rematch_votes:votes};
- if(votes.includes(room.host_id)&&votes.includes(room.guest_id)){
-  patch={board:emptyBoard(),history:[],turn:"black",winner:null,status:"playing",undo_request:null,rematch_votes:[],last_move_at:new Date().toISOString()};
-  localStorage.removeItem("gomoku_result_"+room.id);
- }
- const {data,error}=await db.from("gomoku_rooms").update(patch).eq("id",room.id).select().single();
- if(error)alert("再戰投票失敗："+error.message);else{room=data;render()}
+  if(!roomData || myRole==="spectator") return;
+
+  let votes = Array.isArray(roomData.rematch_votes)
+    ? [...roomData.rematch_votes]
+    : [];
+
+  if(!votes.includes(me.id)) votes.push(me.id);
+
+  if(votes.length>=2){
+    const {data,error} = await db
+      .from("gomoku_rooms")
+      .update({
+        board:emptyBoard(),
+        history:[],
+        turn:"black",
+        winner:null,
+        status:"playing",
+        undo_request:null,
+        rematch_votes:[],
+        last_move_at:new Date().toISOString()
+      })
+      .eq("id",currentRoom)
+      .select()
+      .single();
+
+    if(error){
+      say("gameMsg","重新開始失敗："+error.message);
+      return;
+    }
+
+    roomData = data;
+    renderBoard();
+    renderStatus();
+    say("gameMsg","新的一局開始！");
+  }else{
+    const {error} = await db
+      .from("gomoku_rooms")
+      .update({rematch_votes:votes})
+      .eq("id",currentRoom);
+
+    if(error){
+      say("gameMsg","投票失敗："+error.message);
+    }else{
+      say("gameMsg","已投票，等待另一位玩家。");
+    }
+  }
 }
 
 async function loadChat(){
- if(!room)return;
- const {data,error}=await db.from("gomoku_messages").select("*").eq("room_id",room.id).order("created_at",{ascending:true}).limit(80);
- if(error)return;
- $("chat").innerHTML="";
- (data||[]).forEach(m=>{
-  const line=document.createElement("div");line.className="msg";
-  line.textContent=(m.sender_id===me.id?"我":"玩家")+"："+m.message;
-  $("chat").appendChild(line);
- });
- $("chat").scrollTop=$("chat").scrollHeight;
+  if(!currentRoom) return;
+
+  const {data,error} = await db
+    .from("gomoku_messages")
+    .select("*")
+    .eq("room_id",currentRoom)
+    .order("created_at",{ascending:true})
+    .limit(100);
+
+  if(error){
+    console.error("聊天讀取失敗",error);
+    return;
+  }
+
+  const box = $("chat");
+  box.innerHTML = "";
+
+  (data || []).forEach(m=>{
+    const line = document.createElement("div");
+    line.textContent =
+      (m.sender_id===me.id ? "我：" : "玩家：") + m.message;
+    box.appendChild(line);
+  });
+
+  box.scrollTop = box.scrollHeight;
 }
 
 async function sendChat(){
- if(!room||!me)return;
- const input=$("chatInput"),messageText=input.value.trim();
- if(!messageText)return;
- if(messageText.length>300){alert("訊息最多 300 字");return}
- const {error}=await db.from("gomoku_messages").insert({room_id:room.id,sender_id:me.id,message:messageText});
- if(error){alert("訊息傳送失敗："+error.message);return}
- input.value="";await loadChat();
+  if(!currentRoom || !me) return;
+
+  const message = $("chatInput").value.trim();
+  if(!message) return;
+
+  const {error} = await db
+    .from("gomoku_messages")
+    .insert({
+      room_id:currentRoom,
+      sender_id:me.id,
+      message:message
+    });
+
+  if(error){
+    alert("傳送失敗："+error.message);
+    return;
+  }
+
+  $("chatInput").value = "";
+  await loadChat();
 }
 
-function updateTimer(){
- clearInterval(timerHandle);
- if(!room||room.status!=="playing"){$("timer").textContent="倒數：--";return}
- const tick=()=>{
-  const started=new Date(room.last_move_at||room.updated_at).getTime();
-  const left=Math.max(0,30-Math.floor((Date.now()-started)/1000));
-  $("timer").textContent="倒數："+left+" 秒";
- };
- tick();timerHandle=setInterval(tick,1000);
+function startTimer(){
+  if(timerInterval) clearInterval(timerInterval);
+
+  timerInterval = setInterval(()=>{
+    if(!roomData || roomData.status!=="playing"){
+      say("timer","倒數：--");
+      return;
+    }
+
+    if(!roomData.last_move_at){
+      say("timer","倒數：30");
+      return;
+    }
+
+    const elapsed = Math.floor(
+      (Date.now()-new Date(roomData.last_move_at).getTime())/1000
+    );
+
+    const left = Math.max(0,30-elapsed);
+    say("timer","倒數："+left+" 秒");
+  },1000);
 }
 
-$("guestBtn").onclick=guestLogin;
-$("emailLoginBtn").onclick=emailLogin;
-$("registerBtn").onclick=emailRegister;
-$("upgradeBtn").onclick=upgradeGuest;
-$("resetBtn").onclick=resetPassword;
-$("logoutBtn").onclick=logout;
-$("createBtn").onclick=createRoom;
-$("joinBtn").onclick=joinRoom;
-$("undoBtn").onclick=undo;
-$("rematchBtn").onclick=rematch;
-$("sendBtn").onclick=sendChat;
-$("chatInput").addEventListener("keydown",e=>{if(e.key==="Enter")sendChat()});
-
-db.auth.onAuthStateChange((event,session)=>{
- if(session){
-  me=session.user;
-  updateAccountUI();
- }
+db.auth.onAuthStateChange(async (event,session)=>{
+  if(session && !me){
+    me = session.user;
+    await refreshAccount();
+  }
 });
 
-(async()=>{
- try{
-  await refreshAccount();
-  if(!me){
-   $("loginStatus").textContent="尚未登入，請選擇登入方式。";
+async function init(){
+  const {data,error} = await db.auth.getSession();
+
+  if(error){
+    setAuthMessage("讀取登入狀態失敗："+error.message);
+    return;
   }
- }catch(error){
-  $("loginStatus").textContent="登入狀態讀取失敗："+error.message;
- }
-})();
+
+  if(data.session){
+    me = data.session.user;
+    await refreshAccount();
+  }else{
+    show("authPanel",true);
+  }
+}
+
+init();
 </script>
 </body>
 </html>
