@@ -1,0 +1,456 @@
+
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>五子棋 2.0</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#101827;color:#f5f7fb;font-family:Arial,"Noto Sans TC",sans-serif;padding:16px}
+main{max-width:850px;margin:auto}
+h1{text-align:center;color:#8bbcff}
+.panel{background:#1d2a40;border:1px solid #34445e;border-radius:16px;padding:15px;margin:12px 0}
+button,input{font-size:16px;border-radius:9px;padding:11px;border:0;margin:4px}
+button{background:#397bd7;color:white;font-weight:bold}
+button:disabled{opacity:.4}
+input{max-width:100%;background:#edf2fa;color:#172033}
+.row{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+#board{display:grid;grid-template-columns:repeat(15,1fr);width:min(94vw,570px);aspect-ratio:1;margin:12px auto;background:#d8ad70;padding:8px;border-radius:5px;gap:0}
+.cell{position:relative;border:0;background:transparent;padding:0;margin:0;border-radius:0;min-width:0;aspect-ratio:1}
+.cell:before{content:"";position:absolute;left:0;right:0;top:50%;height:1px;background:#594329}
+.cell:after{content:"";position:absolute;top:0;bottom:0;left:50%;width:1px;background:#594329}
+.stone{position:absolute;z-index:2;width:82%;height:82%;left:9%;top:9%;border-radius:50%;box-shadow:0 2px 4px #0008}
+.black{background:#101010}
+.white{background:#fff;border:1px solid #777}
+#status{text-align:center;font-size:18px;font-weight:bold}
+#chat{height:160px;overflow:auto;background:#111c2c;padding:10px;border-radius:9px}
+.msg{padding:4px 0;border-bottom:1px solid #34445e;overflow-wrap:anywhere}
+.small{font-size:13px;color:#b8c5d8}
+.hidden{display:none!important}
+.stat{display:inline-block;padding:8px 12px;background:#101c2e;border-radius:9px;margin:3px}
+</style>
+</head>
+<body>
+<main>
+<h1>⚫ 五子棋 2.0 ⚪</h1>
+
+<div class="panel">
+  <div id="loginStatus">正在登入訪客帳號...</div>
+  <div class="small" id="uidText"></div>
+</div>
+
+<div class="panel">
+  <h3>遊戲房間</h3>
+  <div class="row">
+    <button id="createBtn">建立房間</button>
+    <input id="roomInput" placeholder="輸入房間代碼" maxlength="8">
+    <button id="joinBtn">加入房間</button>
+  </div>
+  <p id="roomInfo">尚未加入房間</p>
+  <p class="small">房間建立者為黑棋，加入者為白棋；其他登入玩家可輸入代碼觀戰。</p>
+</div>
+
+<div class="panel">
+  <div id="status">請先建立或加入房間</div>
+  <div id="timer" style="text-align:center">倒數：--</div>
+  <div id="board"></div>
+  <div class="row" style="justify-content:center">
+    <button id="undoBtn" disabled>提出／同意悔棋</button>
+    <button id="rematchBtn" disabled>再戰投票</button>
+  </div>
+  <p class="small" id="roleText" style="text-align:center"></p>
+</div>
+
+<div class="panel">
+  <h3>聊天室</h3>
+  <div id="chat"></div>
+  <div class="row">
+    <input id="chatInput" placeholder="輸入訊息..." style="flex:1">
+    <button id="sendBtn">傳送</button>
+  </div>
+</div>
+
+<div class="panel">
+  <h3>個人戰績</h3>
+  <div id="stats">載入中...</div>
+</div>
+
+<p class="small" style="text-align:center">五子棋 2.0 · Supabase 即時連線</p>
+</main>
+
+<script>
+const SUPABASE_URL = "https://djtaiqsrziuflijzfxym.supabase.co";
+const SUPABASE_KEY = "sb_publishable_oRAUcMolkILOwCTbdW3rAQ_KY4wjMEb";
+
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let me = null;
+let room = null;
+let myRole = "spectator";
+let channel = null;
+let timerHandle = null;
+let busy = false;
+
+const $ = id => document.getElementById(id);
+const emptyBoard = () => Array(225).fill(null);
+
+function sayStatus(text){ $("status").textContent = text; }
+function code(){ return Math.random().toString(36).substring(2,7).toUpperCase(); }
+
+async function login(){
+  let {data,error} = await db.auth.getSession();
+  if(error) throw error;
+
+  if(!data.session){
+    const result = await db.auth.signInAnonymously();
+    if(result.error) throw result.error;
+    data = {session:result.data.session};
+  }
+
+  me = data.session.user;
+  $("loginStatus").textContent = "訪客登入成功";
+  $("uidText").textContent = "玩家 ID：" + me.id;
+  await loadStats();
+}
+
+async function loadStats(){
+  const {data,error} = await db.from("gomoku_stats")
+    .select("*").eq("user_id",me.id).maybeSingle();
+
+  if(error){ $("stats").textContent = "戰績讀取失敗：" + error.message; return; }
+
+  const s = data || {wins:0,losses:0,draws:0};
+  $("stats").innerHTML =
+    `<span class="stat">勝場 ${s.wins}</span>
+     <span class="stat">敗場 ${s.losses}</span>
+     <span class="stat">平手 ${s.draws}</span>`;
+}
+
+async function saveResult(result, roomId){
+  const key = "gomoku_result_" + roomId;
+  if(localStorage.getItem(key)) return;
+  localStorage.setItem(key,"saved");
+
+  const {data,error} = await db.from("gomoku_stats")
+    .select("*").eq("user_id",me.id).maybeSingle();
+
+  if(error) return;
+
+  const current = data || {wins:0,losses:0,draws:0};
+  const next = {
+    user_id:me.id,
+    wins:current.wins + (result==="win"?1:0),
+    losses:current.losses + (result==="loss"?1:0),
+    draws:current.draws + (result==="draw"?1:0),
+    updated_at:new Date().toISOString()
+  };
+
+  const saved = await db.from("gomoku_stats").upsert(next);
+  if(!saved.error) await loadStats();
+}
+
+async function createRoom(){
+  if(!me || busy) return;
+  busy = true;
+
+  const roomCode = code();
+  const {data,error} = await db.from("gomoku_rooms").insert({
+    room_code:roomCode,
+    host_id:me.id,
+    status:"waiting",
+    board:emptyBoard(),
+    history:[],
+    turn:"black",
+    last_move_at:new Date().toISOString(),
+    rematch_votes:[]
+  }).select().single();
+
+  busy = false;
+  if(error){alert("建立房間失敗：" + error.message);return;}
+  await enterRoom(data);
+}
+
+async function joinRoom(){
+  if(!me || busy) return;
+  const roomCode = $("roomInput").value.trim().toUpperCase();
+  if(!roomCode){alert("請輸入房間代碼");return;}
+
+  busy = true;
+  const {data:found,error} = await db.from("gomoku_rooms")
+    .select("*").eq("room_code",roomCode).maybeSingle();
+
+  if(error || !found){
+    busy = false; alert("找不到房間：" + (error?.message || "代碼錯誤")); return;
+  }
+
+  if(found.host_id===me.id || found.guest_id===me.id){
+    busy = false; await enterRoom(found); return;
+  }
+
+  if(found.status==="waiting" && !found.guest_id){
+    const {data:joined,error:joinError} = await db.from("gomoku_rooms")
+      .update({
+        guest_id:me.id,
+        status:"playing",
+        last_move_at:new Date().toISOString()
+      })
+      .eq("id",found.id).eq("guest_id",null).eq("status","waiting")
+      .select().maybeSingle();
+
+    if(joinError || !joined){
+      busy = false; alert("加入失敗，房間可能已被其他玩家加入。"); return;
+    }
+    busy = false; await enterRoom(joined); return;
+  }
+
+  busy = false;
+  await enterRoom(found);
+}
+
+async function enterRoom(data){
+  room = data;
+  if(room.host_id===me.id) myRole="black";
+  else if(room.guest_id===me.id) myRole="white";
+  else myRole="spectator";
+
+  $("roomInfo").textContent = "房間代碼：" + room.room_code;
+  $("roleText").textContent =
+    myRole==="black"?"你的身分：黑棋":
+    myRole==="white"?"你的身分：白棋":"你的身分：觀戰者";
+
+  $("undoBtn").disabled = myRole==="spectator";
+  $("rematchBtn").disabled = myRole==="spectator";
+
+  if(channel) await db.removeChannel(channel);
+  channel = db.channel("room-" + room.id)
+    .on("postgres_changes",{
+      event:"UPDATE",schema:"public",table:"gomoku_rooms",
+      filter:"id=eq." + room.id
+    },payload=>{
+      room = payload.new;
+      render();
+      loadChat();
+      checkResult();
+    })
+    .subscribe();
+
+  await render();
+  await loadChat();
+  sayStatus(room.status==="waiting"?"等待另一位玩家加入": "遊戲進行中");
+}
+
+function render(){
+  if(!room) return;
+  const board = Array.isArray(room.board) && room.board.length===225
+    ? room.board : emptyBoard();
+
+  const boardEl = $("board");
+  boardEl.innerHTML = "";
+
+  board.forEach((stone,index)=>{
+    const b = document.createElement("button");
+    b.className = "cell";
+    b.setAttribute("aria-label","棋盤位置 " + (index+1));
+
+    if(stone){
+      const s = document.createElement("span");
+      s.className = "stone " + (stone==="black"?"black":"white");
+      b.appendChild(s);
+    }
+
+    b.onclick = ()=>play(index);
+    boardEl.appendChild(b);
+  });
+
+  const names = {black:"黑棋",white:"白棋"};
+  if(room.status==="waiting") sayStatus("等待白棋加入房間");
+  else if(room.status==="finished"){
+    sayStatus(room.winner==="draw"?"平手！":
+      room.winner===me.id?"你獲勝了！":
+      "本局結束");
+  } else {
+    sayStatus("輪到：" + names[room.turn]);
+  }
+
+  $("undoBtn").disabled = myRole==="spectator" || room.status!=="playing";
+  $("rematchBtn").disabled = myRole==="spectator" || room.status!=="finished";
+  updateTimer();
+}
+
+function fiveInRow(board,index,color){
+  const row=Math.floor(index/15), col=index%15;
+  const dirs=[[1,0],[0,1],[1,1],[1,-1]];
+
+  for(const [dr,dc] of dirs){
+    let count=1;
+    for(const sign of [-1,1]){
+      let r=row+dr*sign,c=col+dc*sign;
+      while(r>=0&&r<15&&c>=0&&c<15&&board[r*15+c]===color){
+        count++; r+=dr*sign; c+=dc*sign;
+      }
+    }
+    if(count>=5) return true;
+  }
+  return false;
+}
+
+async function play(index){
+  if(!room || busy || room.status!=="playing") return;
+  if(myRole==="spectator") return;
+  if(room.turn!==myRole) return alert("還沒輪到你！");
+  if(room.board[index]) return;
+
+  const board = [...room.board];
+  const history = [...(room.history||[]),room.board];
+  board[index]=myRole;
+
+  busy=true;
+  const won=fiveInRow(board,index,myRole);
+  const nextTurn=myRole==="black"?"white":"black";
+
+  const patch={
+    board,
+    history,
+    turn:nextTurn,
+    last_move_at:new Date().toISOString()
+  };
+
+  if(won){
+    patch.status="finished";
+    patch.winner=me.id;
+  }else if(board.every(Boolean)){
+    patch.status="finished";
+    patch.winner="draw";
+  }
+
+  const {data,error}=await db.from("gomoku_rooms")
+    .update(patch).eq("id",room.id).select().single();
+  busy=false;
+
+  if(error){alert("出棋失敗："+error.message);return;}
+  room=data; render(); await checkResult();
+}
+
+async function checkResult(){
+  if(!room || room.status!=="finished" || myRole==="spectator") return;
+
+  if(room.winner==="draw") await saveResult("draw",room.id);
+  else await saveResult(room.winner===me.id?"win":"loss",room.id);
+}
+
+async function undo(){
+  if(!room || myRole==="spectator" || room.status!=="playing") return;
+  if(room.undo_request && room.undo_request!==me.id){
+    const history=[...(room.history||[])];
+    if(!history.length){alert("沒有可以悔棋的步數");return;}
+    const previous=history.pop();
+    const previousTurn=room.turn==="black"?"white":"black";
+    const {data,error}=await db.from("gomoku_rooms").update({
+      board:previous,history,turn:previousTurn,
+      undo_request:null,last_move_at:new Date().toISOString()
+    }).eq("id",room.id).select().single();
+    if(error) alert("悔棋失敗："+error.message);
+    else room=data;
+  }else{
+    const {data,error}=await db.from("gomoku_rooms").update({
+      undo_request:me.id
+    }).eq("id",room.id).select().single();
+    if(error) alert("提出悔棋失敗："+error.message);
+    else {room=data;alert("已提出悔棋，請對方按下同意悔棋。");}
+  }
+  render();
+}
+
+async function rematch(){
+  if(!room || myRole==="spectator" || room.status!=="finished") return;
+  let votes=[...(room.rematch_votes||[])];
+  if(!votes.includes(me.id)) votes.push(me.id);
+
+  let patch={rematch_votes:votes};
+  if(votes.includes(room.host_id) && votes.includes(room.guest_id)){
+    patch={
+      board:emptyBoard(),history:[],turn:"black",winner:null,
+      status:"playing",undo_request:null,rematch_votes:[],
+      last_move_at:new Date().toISOString()
+    };
+    localStorage.removeItem("gomoku_result_"+room.id);
+  }
+
+  const {data,error}=await db.from("gomoku_rooms")
+    .update(patch).eq("id",room.id).select().single();
+  if(error) alert("再戰投票失敗："+error.message);
+  else {room=data;render();}
+}
+
+async function loadChat(){
+  if(!room) return;
+  const {data,error}=await db.from("gomoku_messages")
+    .select("*").eq("room_id",room.id)
+    .order("created_at",{ascending:true}).limit(80);
+
+  if(error) return;
+  const box=$("chat");
+  box.innerHTML="";
+  (data||[]).forEach(m=>{
+    const line=document.createElement("div");
+    line.className="msg";
+    line.textContent=(m.sender_id===me.id?"我":"玩家") + "：" + m.message;
+    box.appendChild(line);
+  });
+  box.scrollTop=box.scrollHeight;
+}
+
+async function sendChat(){
+  if(!room || !me) return;
+  const input=$("chatInput");
+  const message=input.value.trim();
+  if(!message) return;
+  if(message.length>300){alert("訊息最多 300 字");return;}
+
+  const {error}=await db.from("gomoku_messages").insert({
+    room_id:room.id,sender_id:me.id,message
+  });
+  if(error){alert("訊息傳送失敗："+error.message);return;}
+  input.value="";
+  await loadChat();
+}
+
+function updateTimer(){
+  clearInterval(timerHandle);
+  if(!room || room.status!=="playing"){$("timer").textContent="倒數：--";return;}
+
+  const tick=()=>{
+    const started=new Date(room.last_move_at||room.updated_at).getTime();
+    const left=Math.max(0,30-Math.floor((Date.now()-started)/1000));
+    $("timer").textContent="倒數："+left+" 秒";
+    if(left===0 && myRole!=="spectator" && room.turn!==myRole){
+      // 對手超時時由目前玩家提交結束狀態
+      const winner=room.turn==="black"?room.guest_id:room.host_id;
+      if(winner){
+        db.from("gomoku_rooms").update({
+          status:"finished",winner:winner
+        }).eq("id",room.id).eq("status","playing");
+      }
+    }
+  };
+  tick();
+  timerHandle=setInterval(tick,1000);
+}
+
+$("createBtn").onclick=createRoom;
+$("joinBtn").onclick=joinRoom;
+$("undoBtn").onclick=undo;
+$("rematchBtn").onclick=rematch;
+$("sendBtn").onclick=sendChat;
+$("chatInput").addEventListener("keydown",e=>{
+  if(e.key==="Enter") sendChat();
+});
+
+login().catch(error=>{
+  $("loginStatus").textContent="登入失敗："+error.message;
+});
+</script>
+</body>
+</html>
